@@ -56,13 +56,18 @@ func (n Null[T]) Get() T {
 	return n.value
 }
 
-// GetOrZero returns the value inside this Null[T]. If it's invalid, the zero value of type T is returned.
-func (n Null[T]) GetOrZero() T {
+// GetOr returns the value inside of this Null[T]. If it's invalid, the given value is returned.
+func (n Null[T]) GetOr(value T) T {
 	if !n.valid {
-		var zero T
-		return zero
+		return value
 	}
 	return n.value
+}
+
+// GetOrZero returns the value inside this Null[T]. If it's invalid, the zero value of type T is returned.
+func (n Null[T]) GetOrZero() T {
+	var zero T
+	return n.GetOr(zero)
 }
 
 // GetPtr returns the value inside of this Null[T]. If it's invalid, nil is returned. Note that it's
