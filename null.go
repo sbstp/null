@@ -1,24 +1,33 @@
 package null
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
+
+var nullBytes = []byte("null")
 
 type Null[T any] struct {
-	value T
-	valid bool
+	value       T
+	valid       bool
+	initialized bool
 }
 
 // New creates a new invalid Null[T].
 func New[T any]() Null[T] {
 	return Null[T]{
-		valid: false,
+		valid:       false,
+		initialized: true,
 	}
 }
 
 // From creates a new valid Null[T] from the given value.
 func From[T any](from T) Null[T] {
 	return Null[T]{
-		value: from,
-		valid: true,
+		value:       from,
+		valid:       true,
+		initialized: true,
 	}
 }
 
@@ -35,7 +44,7 @@ func FromPtr[T any](from *T) Null[T] {
 // function is returned inside of a new Null[O]. If src is not valid, a new invalid Null[O] is returned.
 //
 // Example:
-// 		null.Map(null.From(3), func (x int) string { return strconv.Itoa(x) })
+// 		null.Map(null.From(3), strconv.Itoa)
 func Map[T, O any](src Null[T], transform func(T) O) Null[O] {
 	if src.valid {
 		return From(transform(src.value))
@@ -46,6 +55,12 @@ func Map[T, O any](src Null[T], transform func(T) O) Null[O] {
 // IsValid returns whether this Null[T] is valid.
 func (n Null[T]) IsValid() bool {
 	return n.valid
+}
+
+// IsInitialized returns whether this Null[T] has been initialized with a value, valid or not, or is
+// just a zero value which has never been touched.
+func (n Null[T]) IsInitialized() bool {
+	return n.initialized
 }
 
 // Get returns the value inside this Null[T]. If it's invalid, the function will panic.
@@ -82,17 +97,19 @@ func (n *Null[T]) GetPtr() *T {
 // Set sets the value inside of the Null[T] and makes it valid.
 func (n *Null[T]) Set(value T) {
 	n.valid = true
+	n.initialized = true
 	n.value = value
 }
 
 // SetPtr sets the value inside of the Null[T] and makes it valid if the given pointer is not nil.
 func (n *Null[T]) SetPtr(value *T) {
-	if value != nil {
-		n.valid = true
+	n.initialized = true
+	n.valid = value != nil
+
+	if n.valid {
 		n.value = *value
 	} else {
 		var zero T
-		n.valid = false
 		n.value = zero
 	}
 }
@@ -102,4 +119,24 @@ func (n Null[T]) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", n.value)
+}
+
+func (n *Null[T]) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, nullBytes) {
+		n.valid, n.initialized = false, true
+		return nil
+	}
+	err := json.Unmarshal(data, &n.value)
+	if err != nil {
+		return err
+	}
+	n.valid, n.initialized = true, true
+	return nil
+}
+
+func (n Null[T]) MarshalJSON() ([]byte, error) {
+	if !n.valid {
+		return nullBytes, nil
+	}
+	return json.Marshal(n.value)
 }
